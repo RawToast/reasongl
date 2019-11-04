@@ -66,6 +66,17 @@ let getTouch0 = (e, canvas) => {
   };
 };
 
+let getTouches = (e, canvas) => {
+  let touches = convertToArray(getChangedTouches(e));
+  switch (touches) {
+  | ts => {
+    let rect = getBoundingClientRect(canvas);
+    Array.map(t => (getTouchIdentifier(t), getClientX(t) - getLeft(rect), getClientY(t) - getTop(rect)), ts);
+  }
+  | _ => [||]
+  };
+};
+
 [@bs.get] external getCanvasWidth : canvasT => int = "width";
 
 [@bs.get] external getCanvasHeight : canvasT => int = "height";
@@ -304,17 +315,16 @@ module Gl: RGLInterface.t = {
     switch (mouseDown) {
     | None => ()
     | Some(cb) =>
-      Document.addEventListener(canvas, "touchstart", e =>
-        switch (getTouch0(e, canvas)) {
-        | Some((touchId, x, y)) =>
-          switch (singleTouchId^) {
-          | None =>
-            singleTouchId := Some(touchId);
-            preventDefault(e);
-            cb(~button=Events.LeftButton, ~state=Events.MouseDown, ~x, ~y);
-          | _ => singleTouchId := None
-          }
-        | None => ()
+      Document.addEventListener(canvas, "touchstart", e => {
+        let touches = getTouches(e, canvas);
+        Array.length(touches) > 0 ? {
+          preventDefault(e);
+          
+          Array.iter(t => {
+            let (touchId, x, y) = t;
+            singleTouchId := Some(touchId); // This needs to change to update 'touches'
+            cb(~button=Events.LeftButton, ~state=Events.MouseDown, ~x, ~y)}, touches);
+          } : ();
         }
       );
       Document.addEventListener(
