@@ -311,7 +311,16 @@ module Gl: RGLInterface.t = {
         ~displayFunc: float => unit,
         (),
       ) => {
-    let singleTouchId = ref(None);
+    let lastTouchId = ref(None);
+    let touches = ref([]);
+    let addTouch = touchId => {
+      touches := List.exists(id => id == touchId, touches^) ? 
+        touches^ : 
+        [touchId, ...touches^];
+    };
+    let removeTouch = touchId => {
+      touches := List.filter(id => id == touchId, touches^);
+    };
     switch (mouseDown) {
     | None => ()
     | Some(cb) =>
@@ -322,7 +331,7 @@ module Gl: RGLInterface.t = {
           
           Array.iter(t => {
             let (touchId, x, y) = t;
-            singleTouchId := Some(touchId); // This needs to change to update 'touches'
+            addTouch(touchId);
             cb(~button=Events.LeftButton, ~state=Events.MouseDown, ~x, ~y)}, touches);
           } : ();
         }
@@ -349,30 +358,28 @@ module Gl: RGLInterface.t = {
     switch (mouseUp) {
     | None => ()
     | Some(cb) =>
-      Document.addEventListener(canvas, "touchend", e =>
-        switch (getTouch0(e, canvas)) {
-        | Some((touchId, x, y)) =>
-          switch (singleTouchId^) {
-          | Some(id) when id == touchId =>
-            singleTouchId := None;
-            preventDefault(e);
-            cb(~button=Events.LeftButton, ~state=Events.MouseUp, ~x, ~y);
-          | _ => ()
-          }
-        | None => ()
+      Document.addEventListener(canvas, "touchend", e => {
+        let touches = getTouches(e, canvas);
+        Array.length(touches) > 0 ? {
+          preventDefault(e);
+          
+          Array.iter(t => {
+            let (touchId, x, y) = t;
+            removeTouch(touchId);
+            cb(~button=Events.LeftButton, ~state=Events.MouseUp, ~x, ~y)}, touches);
+          } : ();
         }
       );
-      Document.addEventListener(canvas, "touchcancel", e =>
-        switch (getTouch0(e, canvas)) {
-        | Some((touchId, x, y)) =>
-          switch (singleTouchId^) {
-          | Some(id) when id == touchId =>
-            singleTouchId := None;
-            preventDefault(e);
-            cb(~button=Events.LeftButton, ~state=Events.MouseUp, ~x, ~y);
-          | _ => ()
-          }
-        | None => ()
+      Document.addEventListener(canvas, "touchcancel", e => {
+        let touches = getTouches(e, canvas);
+        Array.length(touches) > 0 ? {
+          preventDefault(e);
+          
+          Array.iter(t => {
+            let (touchId, x, y) = t;
+            removeTouch(touchId);
+            cb(~button=Events.LeftButton, ~state=Events.MouseUp, ~x, ~y)}, touches);
+          } : ();
         }
       );
       Document.addEventListener(
@@ -397,17 +404,16 @@ module Gl: RGLInterface.t = {
     switch (mouseMove) {
     | None => ()
     | Some(cb) =>
-      Document.addEventListener(canvas, "touchmove", e =>
+      Document.addEventListener(canvas, "touchmove", e => {
+        preventDefault(e);
         switch (getTouch0(e, canvas)) {
-        | Some((touchId, x, y)) =>
-          switch (singleTouchId^) {
-          | Some(id) when id == touchId =>
-            preventDefault(e);
-            cb(~x, ~y);
-          | _ => ()
+        | Some((touchId, x, y)) => {
+          List.exists(id => id == touchId, touches^) ?
+          cb(~x, ~y): ();
           }
         | None => ()
-        }
+        };
+      }
       );
       Document.addEventListener(
         canvas,
