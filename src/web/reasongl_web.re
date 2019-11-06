@@ -68,13 +68,12 @@ let getTouch0 = (e, canvas) => {
 
 let getTouches = (e, canvas) => {
   let touches = convertToArray(getChangedTouches(e));
-  switch (touches) {
-  | ts => {
     let rect = getBoundingClientRect(canvas);
-    Array.map(t => (getTouchIdentifier(t), getClientX(t) - getLeft(rect), getClientY(t) - getTop(rect)), ts);
-  }
-  | _ => [||]
-  };
+    Array.map(t => (
+      getTouchIdentifier(t), 
+      getClientX(t) - getLeft(rect), 
+      getClientY(t) - getTop(rect)), 
+      touches);
 };
 
 [@bs.get] external getCanvasWidth : canvasT => int = "width";
@@ -229,7 +228,7 @@ module Gl: RGLInterface.t = {
       let node =
         switch (screen) {
         | None => None
-        | Some(id) => Js.Nullable.to_opt(Document.getElementById(id))
+        | Some(id) => Js.Nullable.toOption(Document.getElementById(id))
         };
       let canvas =
         switch (node) {
@@ -311,7 +310,6 @@ module Gl: RGLInterface.t = {
         ~displayFunc: float => unit,
         (),
       ) => {
-    let lastTouchId = ref(None);
     let touches = ref([]);
     let addTouch = touchId => {
       touches := List.exists(id => id == touchId, touches^) ? 
