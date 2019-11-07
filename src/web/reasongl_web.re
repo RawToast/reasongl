@@ -54,6 +54,10 @@ external getBoundingClientRect : canvasT => 'leftAndTop =
 
 [@bs.get] external getLeft : 'a => int = "left";
 
+[@bs.get] external getRectWidth : 'a => float = "width";
+
+[@bs.get] external getRectHeight : 'a => float = "height";
+
 let getTouch0 = (e, canvas) => {
   let touches = convertToArray(getChangedTouches(e));
   switch (touches) {
@@ -91,6 +95,10 @@ type styleT;
 [@bs.set] external setWidthStyle : (styleT, string) => unit = "width";
 
 [@bs.set] external setHeightStyle : (styleT, string) => unit = "height";
+
+[@bs.get] external getWidthStyle : (styleT) => string = "width";
+
+[@bs.get] external getHeightStyle : (styleT) => string = "height";
 
 [@bs.set]
 external setBackgroundColor : (styleT, string) => unit = "backgroundColor";
@@ -328,10 +336,21 @@ module Gl: RGLInterface.t = {
             | 2 => Events.RightButton
             | _ => assert false
             };
-          let state = Events.MouseDown;
+          
           let rect = getBoundingClientRect(canvas);
-          let x = getClientX(e) - getLeft(rect);
-          let y = getClientY(e) - getTop(rect);
+          let left = getLeft(rect);
+          let top = getTop(rect);
+          let actualWidth = getRectWidth(rect);
+          let actualHeight = getRectHeight(rect);
+
+          let style = getStyle(canvas);
+          let removePx = s => Js.String.slice(0, Js.String.length(s) - 2, s) |> float_of_string;
+          let width = style |> getWidthStyle |> removePx;
+          let height = style |> getHeightStyle |> removePx;
+
+          let state = Events.MouseDown;
+          let x = int_of_float((float_of_int(getClientX(e) - left)) *. (width /. actualWidth));
+          let y = int_of_float((float_of_int(getClientY(e) - top)) *. (width /. actualWidth));
           cb(~button, ~state, ~x, ~y);
         },
       );
