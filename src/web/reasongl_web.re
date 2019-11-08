@@ -40,7 +40,7 @@ external getChangedTouches : 'eventT => 'touchListT = "changedTouches";
 
 [@bs.val] external convertToArray : 'notarray => array('thing) = "Array.prototype.slice.call";
 
-[@bs.get] external getTouchIdentifier : 'touchT => int = "identifier";
+[@bs.get] external getTouchIdentifier : 'touchT => float = "identifier";
 
 [@bs.send] external preventDefault : 'eventT => unit = "preventDefault";
 
@@ -65,6 +65,18 @@ let getTouch0 = (e, canvas) => {
   | _ => None
   };
 };
+
+let getTouches = (e, canvas) => {
+   let touches = convertToArray(getChangedTouches(e));
+     let rect = getBoundingClientRect(canvas);
+     Array.map(t => (
+       {
+        hash: getTouchIdentifier(t), 
+        x: float_of_int(getClientX(t) - getLeft(rect)), 
+        y: float_of_int(getClientY(t) - getTop(rect)))
+         }, 
+       touches);
+ };
 
 [@bs.get] external getCanvasWidth : canvasT => int = "width";
 
@@ -294,29 +306,30 @@ module Gl: RGLInterface.t = {
         ~mouseDown: option(mouseButtonEventT)=?,
         ~mouseUp: option(mouseButtonEventT)=?,
         ~mouseMove: option((~x: int, ~y: int) => unit)=?,
+        ~touchesBegan: option(~touches: list(Events.touchT) => unit) =?, 
+        ~touchesMoved: option(~touches: list(Events.touchT) => unit) =?, 
+        ~touchesEnded: option(~touches: list(Events.touchT) => unit) =?, 
         ~keyDown: option((~keycode: Events.keycodeT, ~repeat: bool) => unit)=?,
         ~keyUp: option((~keycode: Events.keycodeT) => unit)=?,
         ~windowResize: option(unit => unit)=?,
         ~displayFunc: float => unit,
         (),
       ) => {
-    let singleTouchId = ref(None);
+    let singleTouchId = ref(None);)
+    switch (touchesBegan) {
+      | None => ()
+      | Some(cb) =>
+        Document.addEventListener(canvas, "touchstart", e => {
+          let touches: Events.touchT = getTouches(e, canvas);
+          preventDefault(e);
+          cb(~touches=touches)
+          }
+        );
+      }
+    }
     switch (mouseDown) {
     | None => ()
     | Some(cb) =>
-      Document.addEventListener(canvas, "touchstart", e =>
-        switch (getTouch0(e, canvas)) {
-        | Some((touchId, x, y)) =>
-          switch (singleTouchId^) {
-          | None =>
-            singleTouchId := Some(touchId);
-            preventDefault(e);
-            cb(~button=Events.LeftButton, ~state=Events.MouseDown, ~x, ~y);
-          | _ => singleTouchId := None
-          }
-        | None => ()
-        }
-      );
       Document.addEventListener(
         canvas,
         "mousedown",
