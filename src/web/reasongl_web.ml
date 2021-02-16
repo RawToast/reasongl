@@ -242,6 +242,16 @@ module Gl : RGLInterface.t =
       ?windowResize:(windowResize : (unit -> unit) option) 
       ~displayFunc:(displayFunc : float -> unit)  () =
       let singleTouchId = ref None in
+      let lastTouchId = ref(None);
+      let lastTouchId = ref None
+      let touches = ref []
+      let addTouch touchId =
+        touches :=
+          (match List.exists (fun id  -> id = touchId) (!touches) with
+          | true  -> !touches
+          | false  -> touchId :: (!touches))
+      let removeTouch touchId =
+        touches := (List.filter (fun id  -> id = touchId) (!touches))
       (match mouseDown with
        | None -> ()
        | ((Some (cb))[@explicit_arity ]) ->
@@ -275,29 +285,31 @@ module Gl : RGLInterface.t =
        | None -> ()
        | ((Some (cb))[@explicit_arity ]) ->
            (Document.addEventListener canvas "touchend"
-              (fun e ->
-                 match getTouch0 e canvas with
-                 | ((Some ((touchId, x, y)))) ->
-                     (match !singleTouchId with
-                      | ((Some (id))[@explicit_arity ]) when id = touchId ->
-                          (singleTouchId := None;
-                           preventDefault e;
-                           cb ~button:Events.LeftButton ~state:Events.MouseUp
-                             ~x ~y)
-                      | _ -> ())
-                 | None -> ());
+              (fun e  ->
+                let touches = getTouches e canvas in
+                match (Array.length touches) > 0 with
+                | true  ->
+                    (preventDefault e;
+                    Array.iter
+                      (fun t  ->
+                          let (touchId,x,y) = t in
+                          removeTouch touchId;
+                          cb ~button:Events.LeftButton ~state:Events.MouseUp ~x ~y)
+                      touches)
+                | false  -> ());
             Document.addEventListener canvas "touchcancel"
-              (fun e ->
-                 match getTouch0 e canvas with
-                 | ((Some ((touchId, x, y)))) ->
-                     (match !singleTouchId with
-                      | ((Some (id))[@explicit_arity ]) when id = touchId ->
-                          (singleTouchId := None;
-                           preventDefault e;
-                           cb ~button:Events.LeftButton ~state:Events.MouseUp
-                             ~x ~y)
-                      | _ -> ())
-                 | None -> ());
+              (fun e  ->
+                let touches = getTouches e canvas in
+                match (Array.length touches) > 0 with
+                | true  ->
+                    (preventDefault e;
+                      Array.iter
+                        (fun t  ->
+                          let (touchId,x,y) = t in
+                          removeTouch touchId;
+                          cb ~button:Events.LeftButton ~state:Events.MouseUp ~x ~y)
+                        touches)
+                | false  -> ());
             Document.addEventListener canvas "mouseup"
               (fun e ->
                  let button =
@@ -316,13 +328,13 @@ module Gl : RGLInterface.t =
        | ((Some (cb))[@explicit_arity ]) ->
            (Document.addEventListener canvas "touchmove"
               (fun e ->
-                 match getTouch0 e canvas with
-                 | ((Some ((touchId, x, y)))) ->
-                     (match !singleTouchId with
-                      | ((Some (id))[@explicit_arity ]) when id = touchId ->
-                          (preventDefault e; cb ~x ~y)
-                      | _ -> ())
-                 | None -> ());
+                preventDefault e;
+                (match getTouch0 e canvas with
+                 | ((Some ((touchId,x,y)))[@explicit_arity ]) ->
+                    (match List.exists (fun id  -> id = touchId) (!touches) with
+                      | true  -> cb ~x ~y
+                      | false  -> ())
+                 | None  -> ()));
             Document.addEventListener canvas "mousemove"
               (fun e ->
                  let rect = getBoundingClientRect canvas in
