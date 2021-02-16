@@ -48,6 +48,16 @@ let getTouch0 e canvas =
       let y = (getClientY t) - (getTop rect) in
       ((Some (((getTouchIdentifier t), x, y))))
   | _ -> None
+let getTouches e canvas =
+  let touches = convertToArray (getChangedTouches e) in
+  match touches with
+  | ts ->
+      let rect = getBoundingClientRect canvas in
+      Array.map
+        (fun t  ->
+           ((getTouchIdentifier t), ((getClientX t) - (getLeft rect)),
+             ((getClientY t) - (getTop rect)))) ts
+  | _ -> [||]
 external getCanvasWidth : canvasT -> int = "width"[@@bs.get ]
 external getCanvasHeight : canvasT -> int = "height"[@@bs.get ]
 external setWidth : canvasT -> int -> unit = "width"[@@bs.set ]
@@ -236,18 +246,18 @@ module Gl : RGLInterface.t =
        | None -> ()
        | ((Some (cb))[@explicit_arity ]) ->
            (Document.addEventListener canvas "touchstart"
-              (fun e ->
-                 match getTouch0 e canvas with
-                 | ((Some ((touchId, x, y)))) ->
-                     (match !singleTouchId with
-                      | None ->
-                          (singleTouchId := ((Some (touchId))
-                             [@explicit_arity ]);
-                           preventDefault e;
-                           cb ~button:Events.LeftButton
-                             ~state:Events.MouseDown ~x ~y)
-                      | _ -> singleTouchId := None)
-                 | None -> ());
+              (fun e  ->
+                let touches = getTouches e canvas in
+                match (Array.length touches) > 0 with
+                | true  ->
+                    (preventDefault e;
+                      Array.iter
+                        (fun t  ->
+                          let (touchId,x,y) = t in
+                          addTouch touchId;
+                          cb ~button:Events.LeftButton ~state:Events.MouseDown ~x ~y)
+                        touches)
+                | false  -> ());
             Document.addEventListener canvas "mousedown"
               (fun e ->
                  let button =
